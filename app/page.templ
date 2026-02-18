@@ -1,24 +1,59 @@
-package main
+package app
 
 templ Page() {
-	@Layout("Home") {
-		<h1 class="text-4xl font-bold mb-4">Welcome to Zeptor</h1>
-		<p class="text-xl text-gray-300 mb-6">
-			A Next.js-like framework for Go with eBPF acceleration
-		</p>
-		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-			<div class="bg-gray-800 p-6 rounded-lg">
-				<h3 class="text-xl font-semibold mb-2">Fast</h3>
-				<p class="text-gray-400">Sub-microsecond routing with eBPF XDP</p>
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		<title>Home | Zeptor</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+	</head>
+	<body class="bg-gray-900 text-white min-h-screen">
+		<nav class="bg-gray-800 border-b border-gray-700">
+			<div class="container mx-auto px-4 py-3 flex items-center justify-between">
+				<a href="/" class="text-xl font-bold text-blue-400">Zeptor</a>
+				<div class="flex gap-4">
+					<a href="/" class="hover:text-blue-400">Home</a>
+					<a href="/about" class="hover:text-blue-400">About</a>
+					<a href="/api/routes" class="hover:text-blue-400">Routes</a>
+				</div>
 			</div>
-			<div class="bg-gray-800 p-6 rounded-lg">
-				<h3 class="text-xl font-semibold mb-2">File-based</h3>
-				<p class="text-gray-400">Next.js-style routing conventions</p>
+		</nav>
+		<main class="container mx-auto px-4 py-12">
+			<div class="text-center mb-12">
+				<h1 class="text-5xl font-bold mb-4">Welcome to Zeptor</h1>
+				<p class="text-xl text-gray-400">A Next.js-like framework for Go with eBPF acceleration</p>
 			</div>
-			<div class="bg-gray-800 p-6 rounded-lg">
-				<h3 class="text-xl font-semibold mb-2">Type-safe</h3>
-				<p class="text-gray-400">templ components with full type safety</p>
+
+			<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+				<div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+					<h3 class="text-xl font-semibold mb-3 text-blue-400">Fast</h3>
+					<p class="text-gray-400">Sub-microsecond routing with eBPF XDP kernel-level packet processing</p>
+				</div>
+				<div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+					<h3 class="text-xl font-semibold mb-3 text-green-400">File-based Routing</h3>
+					<p class="text-gray-400">Next.js-style routing conventions with automatic route discovery</p>
+				</div>
+				<div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+					<h3 class="text-xl font-semibold mb-3 text-purple-400">Type-safe Templates</h3>
+					<p class="text-gray-400">Full type safety with templ components and Go</p>
+				</div>
 			</div>
-		</div>
-	}
+
+			<div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+				<h3 class="text-lg font-semibold mb-4">Quick Links</h3>
+				<ul class="space-y-2 text-gray-400">
+					<li><code class="bg-gray-900 px-2 py-1 rounded">GET /</code> - This page</li>
+					<li><code class="bg-gray-900 px-2 py-1 rounded">GET /about</code> - About page</li>
+					<li><code class="bg-gray-900 px-2 py-1 rounded">GET /{"{slug}"}</code> - Dynamic route</li>
+					<li><code class="bg-gray-900 px-2 py-1 rounded">GET /api/routes</code> - List all routes</li>
+				</ul>
+			</div>
+		</main>
+		<footer class="bg-gray-800 border-t border-gray-700 mt-12 py-4 text-center text-gray-500">
+			Powered by Zeptor + eBPF
+		</footer>
+	</body>
+	</html>
 }

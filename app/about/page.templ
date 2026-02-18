@@ -1,17 +1,55 @@
-package main
+package about
 
 templ Page() {
-	@Layout("About") {
-		<h1 class="text-4xl font-bold mb-4">About Zeptor</h1>
-		<p class="text-gray-300 mb-4">
-			Zeptor combines the developer experience of Next.js with the raw performance of eBPF.
-		</p>
-		<ul class="list-disc list-inside text-gray-400 space-y-2">
-			<li>File-based routing from app/ directory</li>
-			<li>SSR and SSG rendering modes</li>
-			<li>Kernel-level caching with eBPF maps</li>
-			<li>Zero-copy data handling</li>
-			<li>Hot module replacement in development</li>
-		</ul>
-	}
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		<title>About | Zeptor</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+	</head>
+	<body class="bg-gray-900 text-white min-h-screen">
+		<nav class="bg-gray-800 border-b border-gray-700">
+			<div class="container mx-auto px-4 py-3 flex items-center justify-between">
+				<a href="/" class="text-xl font-bold text-blue-400">Zeptor</a>
+				<div class="flex gap-4">
+					<a href="/" class="hover:text-blue-400">Home</a>
+					<a href="/about" class="hover:text-blue-400">About</a>
+					<a href="/api/routes" class="hover:text-blue-400">Routes</a>
+				</div>
+			</div>
+		</nav>
+		<main class="container mx-auto px-4 py-12">
+			<h1 class="text-4xl font-bold mb-6">About Zeptor</h1>
+			
+			<div class="max-w-2xl">
+				<p class="text-gray-300 mb-6">
+					Zeptor combines the developer experience of Next.js with the raw performance of eBPF.
+					It's designed for building high-performance web applications in Go.
+				</p>
+
+				<h2 class="text-2xl font-semibold mb-4">Features</h2>
+				<ul class="list-disc list-inside text-gray-400 space-y-2 mb-8">
+					<li>File-based routing from app/ directory</li>
+					<li>Server-side rendering (SSR) with templ</li>
+					<li>Static site generation (SSG) support</li>
+					<li>Kernel-level caching with eBPF maps</li>
+					<li>Hot module replacement in development</li>
+				</ul>
+
+				<h2 class="text-2xl font-semibold mb-4">Tech Stack</h2>
+				<div class="grid grid-cols-2 gap-4 text-gray-400">
+					<div class="bg-gray-800 p-4 rounded">go-chi/chi router</div>
+					<div class="bg-gray-800 p-4 rounded">a-h/templ templates</div>
+					<div class="bg-gray-800 p-4 rounded">cilium/ebpf</div>
+					<div class="bg-gray-800 p-4 rounded">spf13/cobra CLI</div>
+				</div>
+			</div>
+		</main>
+		<footer class="bg-gray-800 border-t border-gray-700 mt-12 py-4 text-center text-gray-500">
+			Powered by Zeptor + eBPF
+		</footer>
+	</body>
+	</html>
 }

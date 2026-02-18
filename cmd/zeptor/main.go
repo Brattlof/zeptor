@@ -13,10 +13,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/brattlof/zeptor/app"
+	"github.com/brattlof/zeptor/app/about"
+	"github.com/brattlof/zeptor/app/slug_"
 	"github.com/brattlof/zeptor/internal/app/config"
 	"github.com/brattlof/zeptor/internal/app/router"
 	"github.com/brattlof/zeptor/internal/ebpf"
-	"github.com/brattlof/zeptor/internal/templates"
 )
 
 var (
@@ -79,14 +81,14 @@ func main() {
 
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := templates.HomePage().Render(req.Context(), w); err != nil {
+		if err := app.Page().Render(req.Context(), w); err != nil {
 			slog.Error("Failed to render home page", "error", err)
 		}
 	})
 
 	r.Get("/about", func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := templates.AboutPage().Render(req.Context(), w); err != nil {
+		if err := about.Page().Render(req.Context(), w); err != nil {
 			slog.Error("Failed to render about page", "error", err)
 		}
 	})
@@ -94,7 +96,7 @@ func main() {
 	r.Get("/{slug}", func(w http.ResponseWriter, req *http.Request) {
 		slug := chi.URLParam(req, "slug")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := templates.DynamicPage(slug).Render(req.Context(), w); err != nil {
+		if err := slug_.Page(slug).Render(req.Context(), w); err != nil {
 			slog.Error("Failed to render dynamic page", "error", err)
 		}
 	})
@@ -138,9 +140,7 @@ func main() {
 	r.NotFound(func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.WriteHeader(http.StatusNotFound)
-		if err := templates.Error404().Render(req.Context(), w); err != nil {
-			slog.Error("Failed to render 404 page", "error", err)
-		}
+		w.Write([]byte(render404Page()))
 	})
 
 	srv := &http.Server{
@@ -207,4 +207,25 @@ func setupLogger(cfg *config.Config) *slog.Logger {
 	}
 
 	return slog.New(handler)
+}
+
+func render404Page() string {
+	return `<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>404 - Not Found</title>
+	<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex items-center justify-center">
+	<div class="text-center">
+		<h1 class="text-8xl font-bold text-gray-700 mb-4">404</h1>
+		<p class="text-xl text-gray-400 mb-8">Page not found</p>
+		<a href="/" class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg text-white font-semibold">
+			Go Home
+		</a>
+	</div>
+</body>
+</html>`
 }

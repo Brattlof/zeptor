@@ -47,8 +47,8 @@ type Router struct {
 }
 
 var (
-	dynamicSegment  = regexp.MustCompile(`\[([^\]]+)\]`)
-	catchAllSegment = regexp.MustCompile(`\[\.\.\.([^\]]+)\]`)
+	dynamicSegment  = regexp.MustCompile(`\{([^}]+)\}|\[([^\]]+)\]|_(\w+)|(\w+)_`)
+	catchAllSegment = regexp.MustCompile(`\{\.\.\.([^}]+)\}|\[\.\.\.([^\]]+)\]`)
 )
 
 func New(appDir string) (*Router, error) {
@@ -126,11 +126,23 @@ func (r *Router) addPageRoute(relPath, fullPath string) {
 	if isDynamic {
 		matches := dynamicSegment.FindAllStringSubmatch(pattern, -1)
 		for _, m := range matches {
-			params = append(params, m[1])
+			if m[1] != "" {
+				params = append(params, m[1])
+			} else if m[2] != "" {
+				params = append(params, m[2])
+			} else if m[3] != "" {
+				params = append(params, m[3])
+			} else if m[4] != "" {
+				params = append(params, m[4])
+			}
 		}
 		matches = catchAllSegment.FindAllStringSubmatch(pattern, -1)
 		for _, m := range matches {
-			params = append(params, "..."+m[1])
+			param := m[1]
+			if param == "" {
+				param = m[2]
+			}
+			params = append(params, "..."+param)
 		}
 		pattern = normalizePattern(pattern)
 	}
@@ -216,8 +228,10 @@ func (r *Router) addAPIRoute(relPath, fullPath string) {
 }
 
 func normalizePattern(pattern string) string {
-	pattern = dynamicSegment.ReplaceAllString(pattern, "{$1}")
-	pattern = catchAllSegment.ReplaceAllString(pattern, "{$1}")
+	pattern = regexp.MustCompile(`\{([^}]+)\}`).ReplaceAllString(pattern, "{$1}")
+	pattern = regexp.MustCompile(`\[([^\]]+)\]`).ReplaceAllString(pattern, "{$1}")
+	pattern = regexp.MustCompile(`_(\w+)`).ReplaceAllString(pattern, "{$1}")
+	pattern = regexp.MustCompile(`(\w+)_`).ReplaceAllString(pattern, "{$1}")
 	return pattern
 }
 
