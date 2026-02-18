@@ -9,11 +9,11 @@ services:
     volumes:
       - ../:/app
       - go-modules:/go/pkg/mod
+    working_dir: /app/examples/basic-routing
     environment:
       - CGO_ENABLED=0
       - ZEPTOR_ENV=development
       - ZEPTOR_EBPF_ENABLED=false
-      - ZEPTOR_CONFIG=/app/zeptor.config.yaml
     command: ["zt", "dev", "--no-ebpf"]
     restart: unless-stopped
 
@@ -30,11 +30,11 @@ services:
       - go-modules:/go/pkg/mod
       - /sys/kernel/debug:/sys/kernel/debug:ro
       - /sys/fs/bpf:/sys/fs/bpf
+    working_dir: /app/examples/with-ebpf
     environment:
       - CGO_ENABLED=1
       - ZEPTOR_ENV=development
       - ZEPTOR_EBPF_ENABLED=true
-      - ZEPTOR_CONFIG=/app/zeptor.config.yaml
     cap_add:
       - SYS_ADMIN
       - NET_ADMIN

@@ -22,56 +22,40 @@ A Next.js-like Go framework with eBPF acceleration.
 ### Prerequisites
 
 - Go 1.23+
-- Docker (for eBPF development on non-Linux)
+- Docker (optional, for containerized development)
 
 ### Installation
 
 ```bash
-# Clone the repository
 git clone https://github.com/brattlof/zeptor.git
 cd zeptor
-
-# Install dependencies
 make install-deps
-
-# Build
 make build
 ```
 
-### Run Development Server
+### Run an Example
 
 ```bash
-# With hot reload (recommended)
-./bin/zt dev
-
-# On a different port
-./bin/zt dev -p 8080
-
-# Without eBPF
-./bin/zt dev --no-ebpf
-
-# Docker (for eBPF on non-Linux)
-docker-compose -f docker/docker-compose.yml up -d zeptor-nobpf
+cd examples/hello-world
+../../bin/zt dev
 ```
 
-### CLI Commands
+Open http://localhost:3000
 
-```bash
-# List discovered routes
-./bin/zt routes
-./bin/zt routes --json
+## Examples
 
-# Start development server
-./bin/zt dev
-
-# Build for production
-./bin/zt build
-```
+| Example | Description |
+|---------|-------------|
+| [hello-world](examples/hello-world/) | Minimal single-page app |
+| [basic-routing](examples/basic-routing/) | Static, dynamic, and API routes |
+| [with-ebpf](examples/with-ebpf/) | eBPF acceleration enabled |
 
 ## Project Structure
 
+Each example is a standalone project:
+
 ```
-zeptor/
+my-zeptor-app/
 ├── app/                    # Your application
 │   ├── page.templ          # Home page (/)
 │   ├── about/
@@ -81,21 +65,8 @@ zeptor/
 │   └── api/
 │       └── users/
 │           └── route.go    # API endpoint (/api/users)
-├── bpf/                    # eBPF programs
-│   ├── xdp_router.c        # XDP packet routing
-│   └── tc_cache.c          # TC HTTP caching
-├── cmd/
-│   ├── zeptor/             # Server binary
-│   └── zt/                 # CLI tool
-├── internal/               # Framework internals
-│   ├── app/
-│   │   ├── config/
-│   │   ├── router/
-│   │   └── render/
-│   ├── ebpf/
-│   └── dev/                # Dev server & HMR
 ├── public/                 # Static files (served at /public/*)
-└── docker/                 # Docker configuration
+└── zeptor.config.yaml      # Configuration
 ```
 
 ## Routing
@@ -119,6 +90,23 @@ zeptor/
 | `GET /api/routes` | List discovered routes |
 | `GET /api/stats` | eBPF cache statistics |
 
+## CLI Commands
+
+```bash
+# Run development server (from project directory)
+zt dev
+
+# Custom port
+zt dev -p 8080
+
+# Disable eBPF
+zt dev --no-ebpf
+
+# List discovered routes
+zt routes
+zt routes --json
+```
+
 ## Configuration
 
 ```yaml
@@ -139,6 +127,20 @@ ebpf:
 
 rendering:
   mode: "ssr"  # ssr, ssg, or isr
+
+logging:
+  level: "info"
+  format: "text"
+```
+
+## Docker Development
+
+```bash
+# Without eBPF (works everywhere)
+docker-compose -f docker/docker-compose.yml up -d zeptor-nobpf
+
+# With eBPF (Linux only)
+docker-compose -f docker/docker-compose.yml --profile ebpf up -d zeptor-ebpf
 ```
 
 ## Requirements
@@ -150,17 +152,10 @@ rendering:
 ## Development
 
 ```bash
-# Run tests
-make test
-
-# Run linter
-make lint
-
-# Format code
-make fmt
-
-# Build Docker images
-make dev
+make test      # Run tests
+make lint      # Run linter
+make fmt       # Format code
+make build     # Build binaries
 ```
 
 ## Status
@@ -175,6 +170,7 @@ This project is in **early alpha**. Expect breaking changes.
 - [x] Dev server with file watching
 - [ ] Full eBPF integration (XDP + TC)
 - [ ] SSG build process
+- [ ] `zt create` project scaffolding
 - [ ] Middleware system
 - [ ] Plugin architecture
 

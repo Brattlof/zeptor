@@ -1,0 +1,17 @@
+app:
+  port: 3000
+  host: "0.0.0.0"
+
+routing:
+  appDir: "./app"
+  publicDir: "./public"
+
+ebpf:
+  enabled: false
+
+rendering:
+  mode: "ssr"
+
+logging:
+  level: "info"
+  format: "text"
