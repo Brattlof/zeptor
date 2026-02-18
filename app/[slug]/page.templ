@@ -1,0 +1,10 @@
+package main
+
+templ Page(slug string) {
+	@Layout("Dynamic: " + slug) {
+		<h1 class="text-4xl font-bold mb-4">Dynamic Route: { slug }</h1>
+		<p class="text-gray-300">
+			This page demonstrates dynamic routing with the [slug] parameter.
+		</p>
+	}
+}
