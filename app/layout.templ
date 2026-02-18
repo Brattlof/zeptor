@@ -1,0 +1,100 @@
+package render
+
+import (
+	"context"
+	"io"
+)
+
+type PageData struct {
+	Title   string
+	Content string
+}
+
+templ Layout(title string, children templ.Component) {
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		<title>{ title } | Zeptor</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+	</head>
+	<body class="bg-gray-900 text-white min-h-screen">
+		<nav class="bg-gray-800 p-4">
+			<div class="container mx-auto flex gap-4">
+				<a href="/" class="hover:text-blue-400">Home</a>
+				<a href="/about" class="hover:text-blue-400">About</a>
+				<a href="/api/users" class="hover:text-blue-400">API</a>
+			</div>
+		</nav>
+		<main class="container mx-auto p-8">
+			@children
+		</main>
+		<footer class="bg-gray-800 p-4 mt-8 text-center text-gray-400">
+			Powered by Zeptor + eBPF
+		</footer>
+	</body>
+	</html>
+}
+
+templ HomePage() {
+	@Layout("Home") {
+		<h1 class="text-4xl font-bold mb-4">Welcome to Zeptor</h1>
+		<p class="text-xl text-gray-300 mb-6">
+			A Next.js-like framework for Go with eBPF acceleration
+		</p>
+		<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+			<div class="bg-gray-800 p-6 rounded-lg">
+				<h3 class="text-xl font-semibold mb-2">⚡ Fast</h3>
+				<p class="text-gray-400">Sub-microsecond routing with eBPF XDP</p>
+			</div>
+			<div class="bg-gray-800 p-6 rounded-lg">
+				<h3 class="text-xl font-semibold mb-2">📁 File-based</h3>
+				<p class="text-gray-400">Next.js-style routing conventions</p>
+			</div>
+			<div class="bg-gray-800 p-6 rounded-lg">
+				<h3 class="text-xl font-semibold mb-2">🎨 Type-safe</h3>
+				<p class="text-gray-400">templ components with full type safety</p>
+			</div>
+		</div>
+	}
+}
+
+templ AboutPage() {
+	@Layout("About") {
+		<h1 class="text-4xl font-bold mb-4">About Zeptor</h1>
+		<p class="text-gray-300 mb-4">
+			Zeptor combines the developer experience of Next.js with the raw performance of eBPF.
+		</p>
+		<ul class="list-disc list-inside text-gray-400 space-y-2">
+			<li>File-based routing from app/ directory</li>
+			<li>SSR and SSG rendering modes</li>
+			<li>Kernel-level caching with eBPF maps</li>
+			<li>Zero-copy data handling</li>
+			<li>Hot module replacement in development</li>
+		</ul>
+	}
+}
+
+templ DynamicPage(slug string) {
+	@Layout("Dynamic: " + slug) {
+		<h1 class="text-4xl font-bold mb-4">Dynamic Route: { slug }</h1>
+		<p class="text-gray-300">
+			This page demonstrates dynamic routing with the [slug] parameter.
+		</p>
+	}
+}
+
+templ Error404() {
+	@Layout("Not Found") {
+		<div class="text-center py-20">
+			<h1 class="text-6xl font-bold mb-4">404</h1>
+			<p class="text-xl text-gray-400">Page not found</p>
+			<a href="/" class="mt-4 inline-block text-blue-400 hover:underline">Go Home</a>
+		</div>
+	}
+}
+
+func (p *PageData) Render(ctx context.Context, w io.Writer) error {
+	return HomePage().Render(ctx, w)
+}

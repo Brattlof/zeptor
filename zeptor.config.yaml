@@ -1,0 +1,25 @@
+app:
+  port: 3000
+  host: "0.0.0.0"
+
+routing:
+  appDir: "./app"
+  publicDir: "./public"
+
+ebpf:
+  enabled: true
+  interface: "eth0"
+  cacheSize: 10000
+  cacheTTLSec: 60
+
+rendering:
+  mode: "ssr"
+  isrRevalidateSec: 300
+
+build:
+  outDir: "./.zeptor"
+  staticDir: "./dist"
+
+logging:
+  level: "info"
+  format: "json"
