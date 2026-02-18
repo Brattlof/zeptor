@@ -59,8 +59,7 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-conduct@zeptor.dev.
+reported by opening a GitHub issue or contacting a maintainer directly.
 
 All complaints will be reviewed and investigated promptly and fairly.
 
