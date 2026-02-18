@@ -31,10 +31,12 @@ COPY . .
 
 RUN templ generate || true
 
+RUN go build -o /bin/zt ./cmd/zt
+
 ENV CGO_ENABLED=1
 ENV ZEPTOR_ENV=development
 
 EXPOSE 3000
 EXPOSE 40000
 
-CMD ["go", "run", "./cmd/zeptor"]
+CMD ["zt", "dev"]

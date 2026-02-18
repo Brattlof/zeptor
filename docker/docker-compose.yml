@@ -14,7 +14,7 @@ services:
       - ZEPTOR_ENV=development
       - ZEPTOR_EBPF_ENABLED=false
       - ZEPTOR_CONFIG=/app/zeptor.config.yaml
-    command: ["go", "run", "./cmd/zeptor"]
+    command: ["zt", "dev", "--no-ebpf"]
     restart: unless-stopped
 
   zeptor-ebpf:
@@ -49,7 +49,7 @@ services:
         hard: -1
     profiles:
       - ebpf
-    command: ["go", "run", "./cmd/zeptor"]
+    command: ["zt", "dev"]
     restart: unless-stopped
 
   zeptor-ebpf-test:

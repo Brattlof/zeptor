@@ -102,6 +102,8 @@ func (d *DevServer) setupRoutes(r chi.Router) {
 	r.Get("/about", d.renderAbout)
 	r.Get("/{slug}", d.renderDynamic)
 
+	r.HandleFunc("/api/users", d.usersHandler)
+
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"status":"ok","mode":"dev"}`)
@@ -168,6 +170,11 @@ func (d *DevServer) renderPage(title, heading string) string {
 	</main>
 </body>
 </html>`, title, heading)
+}
+
+func (d *DevServer) usersHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`[{"id":1,"name":"Alice","email":"alice@example.com"},{"id":2,"name":"Bob","email":"bob@example.com"},{"id":3,"name":"Charlie","email":"charlie@example.com"}]`))
 }
 
 func (d *DevServer) handleFileChange(path string) {
