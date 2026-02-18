@@ -13,7 +13,8 @@ A Next.js-like Go framework with eBPF acceleration.
 - 📁 **File-based routing** - Automatic route discovery from `app/` directory
 - ⚡ **eBPF acceleration** - Kernel-level routing and caching (Linux only)
 - 🎨 **Type-safe templates** - Full type safety with [templ](https://github.com/a-h/templ)
-- 🔀 **Dynamic routes** - Support for `[slug]` style parameters
+- 🔀 **Dynamic routes** - Support for `{slug}` style parameters
+- 🔄 **Hot reload** - Instant browser refresh during development
 - 🚀 **Fast** - Radix tree router with O(k) lookups
 
 ## Quick Start
@@ -40,11 +41,17 @@ make build
 ### Run Development Server
 
 ```bash
-# Without eBPF (works everywhere)
-docker-compose -f docker/docker-compose.yml up -d zeptor-nobpf
+# With hot reload (recommended)
+./bin/zt dev
 
-# With eBPF (Linux only)
-docker-compose -f docker/docker-compose.yml --profile ebpf up -d zeptor-ebpf
+# On a different port
+./bin/zt dev -p 8080
+
+# Without eBPF
+./bin/zt dev --no-ebpf
+
+# Docker (for eBPF on non-Linux)
+docker-compose -f docker/docker-compose.yml up -d zeptor-nobpf
 ```
 
 ### CLI Commands
@@ -69,7 +76,7 @@ zeptor/
 │   ├── page.templ          # Home page (/)
 │   ├── about/
 │   │   └── page.templ      # About page (/about)
-│   ├── [slug]/
+│   ├── slug_/
 │   │   └── page.templ      # Dynamic route (/{slug})
 │   └── api/
 │       └── users/
@@ -86,7 +93,8 @@ zeptor/
 │   │   ├── router/
 │   │   └── render/
 │   ├── ebpf/
-│   └── dev/
+│   └── dev/                # Dev server & HMR
+├── public/                 # Static files (served at /public/*)
 └── docker/                 # Docker configuration
 ```
 
@@ -98,8 +106,10 @@ zeptor/
 |-----------|-------------|-------------|
 | `app/page.templ` | `/` | Home page |
 | `app/about/page.templ` | `/about` | Static route |
-| `app/blog/[slug]/page.templ` | `/blog/{slug}` | Dynamic route |
+| `app/blog/slug_/page.templ` | `/blog/{slug}` | Dynamic route |
 | `app/api/users/route.go` | `/api/users` | API endpoint |
+
+> **Note:** Dynamic route directories use `slug_` suffix (e.g., `slug_` → `{slug}`) for Go package compatibility.
 
 ### API Endpoints
 
@@ -159,10 +169,12 @@ This project is in **early alpha**. Expect breaking changes.
 
 ### Roadmap
 
+- [x] File-based routing with radix tree
+- [x] SSR with templ rendering
+- [x] Hot module replacement (HMR)
+- [x] Dev server with file watching
 - [ ] Full eBPF integration (XDP + TC)
-- [ ] SSR with templ rendering
 - [ ] SSG build process
-- [ ] Hot module replacement
 - [ ] Middleware system
 - [ ] Plugin architecture
 

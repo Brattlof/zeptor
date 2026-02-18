@@ -10,6 +10,7 @@ import (
 
 	"github.com/brattlof/zeptor/internal/app/config"
 	"github.com/brattlof/zeptor/internal/app/router"
+	"github.com/brattlof/zeptor/internal/dev"
 )
 
 var rootCmd = &cobra.Command{
@@ -43,8 +44,10 @@ var devCmd = &cobra.Command{
 			cfg.EBPF.Enabled = false
 		}
 
-		fmt.Printf("Starting dev server on :%d (eBPF: %v)\n", cfg.App.Port, cfg.EBPF.Enabled)
-		fmt.Println("Dev server not yet implemented - run 'go run ./cmd/zeptor' instead")
+		if err := dev.RunDev(cfg); err != nil {
+			fmt.Fprintf(os.Stderr, "Dev server error: %v\n", err)
+			os.Exit(1)
+		}
 	},
 }
 
