@@ -1,0 +1,18 @@
+FROM golang:1.23-bookworm
+
+RUN apt-get update && apt-get install -y \
+    clang \
+    llvm \
+    libbpf-dev \
+    linux-headers-generic \
+    linux-headers-amd64 \
+    bpftool \
+    iproute2 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN ln -sf /usr/include/x86_64-linux-gnu/asm /usr/include/asm || true
+
+COPY docker/test-ebpf.sh /test-ebpf.sh
+RUN chmod +x /test-ebpf.sh
+
+CMD ["/test-ebpf.sh"]

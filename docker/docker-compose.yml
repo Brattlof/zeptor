@@ -1,0 +1,78 @@
+services:
+  zeptor-nobpf:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    container_name: zeptor-dev-nobpf
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../:/app
+      - go-modules:/go/pkg/mod
+    environment:
+      - CGO_ENABLED=0
+      - ZEPTOR_ENV=development
+      - ZEPTOR_EBPF_ENABLED=false
+      - ZEPTOR_CONFIG=/app/zeptor.config.yaml
+    command: ["go", "run", "./cmd/zeptor"]
+    restart: unless-stopped
+
+  zeptor-ebpf:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.dev
+    container_name: zeptor-dev-ebpf
+    privileged: true
+    network_mode: host
+    pid: host
+    volumes:
+      - ../:/app
+      - go-modules:/go/pkg/mod
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/fs/bpf:/sys/fs/bpf
+    environment:
+      - CGO_ENABLED=1
+      - ZEPTOR_ENV=development
+      - ZEPTOR_EBPF_ENABLED=true
+      - ZEPTOR_CONFIG=/app/zeptor.config.yaml
+    cap_add:
+      - SYS_ADMIN
+      - NET_ADMIN
+      - SYS_RESOURCE
+      - BPF
+      - PERFMON
+    security_opt:
+      - seccomp:unconfined
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    profiles:
+      - ebpf
+    command: ["go", "run", "./cmd/zeptor"]
+    restart: unless-stopped
+
+  zeptor-ebpf-test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.ebpf-test
+    container_name: zeptor-ebpf-test
+    privileged: true
+    volumes:
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/fs/bpf:/sys/fs/bpf
+    cap_add:
+      - SYS_ADMIN
+      - NET_ADMIN
+      - BPF
+      - PERFMON
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    profiles:
+      - ebpf-test
+    command: ["/test-ebpf.sh"]
+
+volumes:
+  go-modules:
