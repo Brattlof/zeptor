@@ -1,0 +1,144 @@
+package templates
+
+templ Layout(title string, children templ.Component) {
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		<title>{ title } | Zeptor</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+	</head>
+	<body class="bg-gray-900 text-white min-h-screen">
+		<nav class="bg-gray-800 border-b border-gray-700">
+			<div class="container mx-auto px-4 py-3 flex items-center justify-between">
+				<a href="/" class="text-xl font-bold text-blue-400">Zeptor</a>
+				<div class="flex gap-4">
+					<a href="/" class="hover:text-blue-400">Home</a>
+					<a href="/about" class="hover:text-blue-400">About</a>
+					<a href="/api/routes" class="hover:text-blue-400">Routes</a>
+				</div>
+			</div>
+		</nav>
+		@children
+		<footer class="bg-gray-800 border-t border-gray-700 mt-12 py-4 text-center text-gray-500">
+			Powered by Zeptor + eBPF
+		</footer>
+	</body>
+	</html>
+}
+
+templ homeContent() {
+	<main class="container mx-auto px-4 py-12">
+		<div class="text-center mb-12">
+			<h1 class="text-5xl font-bold mb-4">Welcome to Zeptor</h1>
+			<p class="text-xl text-gray-400">A Next.js-like framework for Go with eBPF acceleration</p>
+		</div>
+
+		<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+			<div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+				<h3 class="text-xl font-semibold mb-3 text-blue-400">Fast</h3>
+				<p class="text-gray-400">Sub-microsecond routing with eBPF XDP kernel-level packet processing</p>
+			</div>
+			<div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+				<h3 class="text-xl font-semibold mb-3 text-green-400">File-based Routing</h3>
+				<p class="text-gray-400">Next.js-style routing conventions with automatic route discovery</p>
+			</div>
+			<div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+				<h3 class="text-xl font-semibold mb-3 text-purple-400">Type-safe Templates</h3>
+				<p class="text-gray-400">Full type safety with templ components and Go</p>
+			</div>
+		</div>
+
+		<div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+			<h3 class="text-lg font-semibold mb-4">Quick Links</h3>
+			<ul class="space-y-2 text-gray-400">
+				<li><code class="bg-gray-900 px-2 py-1 rounded">GET /</code> - This page</li>
+				<li><code class="bg-gray-900 px-2 py-1 rounded">GET /about</code> - About page</li>
+				<li><code class="bg-gray-900 px-2 py-1 rounded">GET /{"{slug}"}</code> - Dynamic route</li>
+				<li><code class="bg-gray-900 px-2 py-1 rounded">GET /api/users</code> - API endpoint</li>
+				<li><code class="bg-gray-900 px-2 py-1 rounded">GET /api/routes</code> - List all routes</li>
+			</ul>
+		</div>
+	</main>
+}
+
+templ HomePage() {
+	@Layout("Home", homeContent())
+}
+
+templ aboutContent() {
+	<main class="container mx-auto px-4 py-12">
+		<h1 class="text-4xl font-bold mb-6">About Zeptor</h1>
+		
+		<div class="max-w-2xl">
+			<p class="text-gray-300 mb-6">
+				Zeptor combines the developer experience of Next.js with the raw performance of eBPF.
+				It's designed for building high-performance web applications in Go.
+			</p>
+
+			<h2 class="text-2xl font-semibold mb-4">Features</h2>
+			<ul class="list-disc list-inside text-gray-400 space-y-2 mb-8">
+				<li>File-based routing from app/ directory</li>
+				<li>Server-side rendering (SSR) with templ</li>
+				<li>Static site generation (SSG) support</li>
+				<li>Kernel-level caching with eBPF maps</li>
+				<li>Hot module replacement in development</li>
+			</ul>
+
+			<h2 class="text-2xl font-semibold mb-4">Tech Stack</h2>
+			<div class="grid grid-cols-2 gap-4 text-gray-400">
+				<div class="bg-gray-800 p-4 rounded">go-chi/chi router</div>
+				<div class="bg-gray-800 p-4 rounded">a-h/templ templates</div>
+				<div class="bg-gray-800 p-4 rounded">cilium/ebpf</div>
+				<div class="bg-gray-800 p-4 rounded">spf13/cobra CLI</div>
+			</div>
+		</div>
+	</main>
+}
+
+templ AboutPage() {
+	@Layout("About", aboutContent())
+}
+
+templ dynamicContent(slug string) {
+	<main class="container mx-auto px-4 py-12">
+		<div class="max-w-2xl">
+			<h1 class="text-4xl font-bold mb-6">Dynamic Route</h1>
+			
+			<div class="bg-gray-800 p-6 rounded-lg border border-gray-700 mb-6">
+				<p class="text-gray-400 mb-2">Slug parameter:</p>
+				<code class="text-2xl text-blue-400">{ slug }</code>
+			</div>
+
+			<p class="text-gray-300">
+				This page demonstrates dynamic routing. The URL pattern <code class="bg-gray-800 px-2 py-1 rounded">/{"{slug}"}</code>
+				captures any single path segment and passes it to the page component.
+			</p>
+
+			<div class="mt-8">
+				<a href="/" class="text-blue-400 hover:underline">Back to Home</a>
+			</div>
+		</div>
+	</main>
+}
+
+templ DynamicPage(slug string) {
+	@Layout("Dynamic: " + slug, dynamicContent(slug))
+}
+
+templ error404Content() {
+	<main class="container mx-auto px-4 py-12 flex items-center justify-center min-h-[50vh]">
+		<div class="text-center">
+			<h1 class="text-8xl font-bold text-gray-700 mb-4">404</h1>
+			<p class="text-xl text-gray-400 mb-8">Page not found</p>
+			<a href="/" class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg text-white font-semibold inline-block">
+				Go Home
+			</a>
+		</div>
+	</main>
+}
+
+templ Error404() {
+	@Layout("Not Found", error404Content())
+}
