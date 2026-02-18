@@ -1,8 +1,10 @@
 package dev
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -22,15 +24,14 @@ import (
 )
 
 type DevServer struct {
-	config     *config.Config
-	router     *router.Router
-	hmr        *HMRSerer
-	watcher    *Watcher
-	builder    *Builder
-	server     *http.Server
-	restartMu  sync.Mutex
-	restarting bool
-	cancel     context.CancelFunc
+	config      *config.Config
+	router      *router.Router
+	hmr         *HMRSerer
+	watcher     *Watcher
+	proxyServer *http.Server
+	childCmd    *exec.Cmd
+	childMu     sync.Mutex
+	rebuilding  bool
 }
 
 func NewDevServer(cfg *config.Config) (*DevServer, error) {
@@ -40,18 +41,19 @@ func NewDevServer(cfg *config.Config) (*DevServer, error) {
 	}
 
 	return &DevServer{
-		config:  cfg,
-		router:  rt,
-		hmr:     NewHMRSerer(),
-		builder: NewBuilder(cfg.Routing.AppDir, cfg.Build.OutDir),
+		config: cfg,
+		router: rt,
+		hmr:    NewHMRSerer(),
 	}, nil
 }
 
 func (d *DevServer) Start(ctx context.Context) error {
+	if err := d.buildAndStartChild(ctx); err != nil {
+		slog.Warn("Initial build failed", "error", err)
+	}
+
 	d.watcher, _ = NewWatcher([]string{
 		d.config.Routing.AppDir,
-		"cmd",
-		"internal",
 	}, d.handleFileChange)
 
 	if err := d.watcher.Start(ctx); err != nil {
@@ -63,33 +65,7 @@ func (d *DevServer) Start(ctx context.Context) error {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Use(InjectHMR)
 
-	d.setupRoutes(r)
-
-	d.server = &http.Server{
-		Addr:         d.config.Addr(),
-		Handler:      r,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
-	}
-
-	slog.Info("Starting dev server",
-		"addr", d.config.Addr(),
-		"routes", len(d.router.Routes()),
-	)
-
-	go func() {
-		if err := d.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("Server error", "error", err)
-		}
-	}()
-
-	return nil
-}
-
-func (d *DevServer) setupRoutes(r chi.Router) {
 	r.Get("/__hmr", d.hmr.Handler())
 
 	publicDir := d.config.Routing.PublicDir
@@ -98,98 +74,171 @@ func (d *DevServer) setupRoutes(r chi.Router) {
 			noCacheFileServer(http.Dir(publicDir))))
 	}
 
-	r.Get("/", d.renderHome)
-	r.Get("/about", d.renderAbout)
-	r.Get("/{slug}", d.renderDynamic)
+	r.HandleFunc("/*", d.proxyHandler)
 
-	r.HandleFunc("/api/users", d.usersHandler)
+	d.proxyServer = &http.Server{
+		Addr:         d.config.Addr(),
+		Handler:      r,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
 
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status":"ok","mode":"dev"}`)
-	})
+	slog.Info("Dev proxy starting",
+		"addr", d.config.Addr(),
+		"routes", len(d.router.Routes()),
+	)
 
-	r.Get("/api/routes", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		routes := d.router.Routes()
-		fmt.Fprintf(w, `{"routes":[`)
-		for i, route := range routes {
-			if i > 0 {
-				w.Write([]byte(","))
-			}
-			fmt.Fprintf(w, `{"pattern":"%s","file":"%s"}`, route.Pattern, route.File)
+	go func() {
+		if err := d.proxyServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("Proxy server error", "error", err)
 		}
-		w.Write([]byte(`]}`))
-	})
+	}()
 
-	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`<!DOCTYPE html><html><body><h1>404 Not Found</h1></body></html>`))
-	})
+	return nil
 }
 
-func (d *DevServer) renderHome(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(d.renderPage("Home | Zeptor", "Welcome to Zeptor (Dev Mode)")))
+func (d *DevServer) buildAndStartChild(ctx context.Context) error {
+	d.childMu.Lock()
+	defer d.childMu.Unlock()
+
+	if d.childCmd != nil && d.childCmd.Process != nil {
+		d.childCmd.Process.Signal(syscall.SIGTERM)
+		time.Sleep(500 * time.Millisecond)
+		if d.childCmd.Process != nil {
+			d.childCmd.Process.Kill()
+		}
+		d.childCmd.Wait()
+	}
+
+	slog.Info("Building example...")
+	buildCmd := exec.CommandContext(ctx, "go", "build", "-o", ".zeptor/server.exe", ".")
+	buildCmd.Stdout = os.Stdout
+	buildCmd.Stderr = os.Stderr
+	if err := buildCmd.Run(); err != nil {
+		return fmt.Errorf("build failed: %w", err)
+	}
+
+	slog.Info("Starting child server on :3001")
+	d.childCmd = exec.CommandContext(context.Background(), "./.zeptor/server.exe")
+	d.childCmd.Stdout = os.Stdout
+	d.childCmd.Stderr = os.Stderr
+	d.childCmd.Env = append(os.Environ(), "PORT=3001")
+
+	if err := d.childCmd.Start(); err != nil {
+		return fmt.Errorf("start child: %w", err)
+	}
+
+	time.Sleep(500 * time.Millisecond)
+	return nil
 }
 
-func (d *DevServer) renderAbout(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(d.renderPage("About | Zeptor", "About Zeptor (Dev Mode)")))
+func (d *DevServer) proxyHandler(w http.ResponseWriter, r *http.Request) {
+	d.childMu.Lock()
+	childCmd := d.childCmd
+	d.childMu.Unlock()
+
+	if childCmd == nil || childCmd.Process == nil {
+		http.Error(w, "Server starting...", http.StatusServiceUnavailable)
+		return
+	}
+
+	targetURL := fmt.Sprintf("http://localhost:3001%s", r.URL.Path)
+	if r.URL.RawQuery != "" {
+		targetURL += "?" + r.URL.RawQuery
+	}
+
+	proxyReq, err := http.NewRequest(r.Method, targetURL, r.Body)
+	if err != nil {
+		http.Error(w, "Proxy error", http.StatusInternalServerError)
+		return
+	}
+
+	proxyReq.Header = r.Header.Clone()
+
+	resp, err := http.DefaultClient.Do(proxyReq)
+	if err != nil {
+		http.Error(w, "Server unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	defer resp.Body.Close()
+
+	contentType := resp.Header.Get("Content-Type")
+	var body []byte
+	if strings.Contains(contentType, "text/html") {
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			http.Error(w, "Read error", http.StatusInternalServerError)
+			return
+		}
+		body = d.injectHMR(bodyBytes)
+	} else {
+		body, err = io.ReadAll(resp.Body)
+		if err != nil {
+			http.Error(w, "Read error", http.StatusInternalServerError)
+			return
+		}
+	}
+
+	for k, v := range resp.Header {
+		w.Header()[k] = v
+	}
+	w.WriteHeader(resp.StatusCode)
+	w.Write(body)
 }
 
-func (d *DevServer) renderDynamic(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(d.renderPage("Dynamic | Zeptor", "Slug: "+slug)))
-}
+func (d *DevServer) injectHMR(body []byte) []byte {
+	idx := bytes.LastIndex(body, []byte("</body>"))
+	if idx == -1 {
+		return body
+	}
 
-func (d *DevServer) renderPage(title, heading string) string {
-	return fmt.Sprintf(`<!DOCTYPE html>
-<html lang="en">
-<head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>%s</title>
-	<script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-900 text-white min-h-screen">
-	<nav class="bg-gray-800 border-b border-gray-700">
-		<div class="container mx-auto px-4 py-3 flex items-center justify-between">
-			<a href="/" class="text-xl font-bold text-blue-400">Zeptor (Dev)</a>
-			<div class="flex gap-4">
-				<a href="/" class="hover:text-blue-400">Home</a>
-				<a href="/about" class="hover:text-blue-400">About</a>
-			</div>
-		</div>
-	</nav>
-	<main class="container mx-auto px-4 py-12">
-		<h1 class="text-4xl font-bold mb-6">%s</h1>
-		<p class="text-gray-400">Development mode - HMR enabled</p>
-	</main>
-</body>
-</html>`, title, heading)
-}
-
-func (d *DevServer) usersHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`[{"id":1,"name":"Alice","email":"alice@example.com"},{"id":2,"name":"Bob","email":"bob@example.com"},{"id":3,"name":"Charlie","email":"charlie@example.com"}]`))
+	var result []byte
+	result = append(result, body[:idx]...)
+	result = append(result, []byte(hmrClientScript)...)
+	result = append(result, body[idx:]...)
+	return result
 }
 
 func (d *DevServer) handleFileChange(path string) {
 	ext := filepath.Ext(path)
+	d.childMu.Lock()
+	rebuilding := d.rebuilding
+	d.childMu.Unlock()
+
+	if rebuilding {
+		return
+	}
 
 	switch ext {
 	case ".templ":
-		slog.Info("Templ file changed, regenerating...", "file", path)
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		slog.Info("Templ file changed, rebuilding...", "file", path)
+		d.childMu.Lock()
+		d.rebuilding = true
+		d.childMu.Unlock()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
-		if err := d.builder.GenerateTempl(ctx); err != nil {
-			slog.Error("Failed to regenerate templ", "error", err)
+		if err := exec.CommandContext(ctx, "templ", "generate").Run(); err != nil {
+			slog.Error("Templ generate failed", "error", err)
+			d.childMu.Lock()
+			d.rebuilding = false
+			d.childMu.Unlock()
 			return
 		}
+
+		if err := d.buildAndStartChild(ctx); err != nil {
+			slog.Error("Rebuild failed", "error", err)
+			d.childMu.Lock()
+			d.rebuilding = false
+			d.childMu.Unlock()
+			return
+		}
+
+		d.childMu.Lock()
+		d.rebuilding = false
+		d.childMu.Unlock()
 
 		d.hmr.Reload(path)
 
@@ -197,7 +246,26 @@ func (d *DevServer) handleFileChange(path string) {
 		if strings.Contains(path, "_templ.go") {
 			return
 		}
-		slog.Info("Go file changed, rebuild needed", "file", path)
+		slog.Info("Go file changed, rebuilding...", "file", path)
+		d.childMu.Lock()
+		d.rebuilding = true
+		d.childMu.Unlock()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		if err := d.buildAndStartChild(ctx); err != nil {
+			slog.Error("Rebuild failed", "error", err)
+			d.childMu.Lock()
+			d.rebuilding = false
+			d.childMu.Unlock()
+			return
+		}
+
+		d.childMu.Lock()
+		d.rebuilding = false
+		d.childMu.Unlock()
+
 		d.hmr.Reload(path)
 	}
 }
@@ -207,8 +275,15 @@ func (d *DevServer) Shutdown(ctx context.Context) error {
 		d.watcher.Close()
 	}
 	d.hmr.Close()
-	if d.server != nil {
-		return d.server.Shutdown(ctx)
+
+	d.childMu.Lock()
+	if d.childCmd != nil && d.childCmd.Process != nil {
+		d.childCmd.Process.Signal(syscall.SIGTERM)
+	}
+	d.childMu.Unlock()
+
+	if d.proxyServer != nil {
+		return d.proxyServer.Shutdown(ctx)
 	}
 	return nil
 }
@@ -246,38 +321,4 @@ func RunDev(cfg *config.Config) error {
 	defer shutdownCancel()
 
 	return dev.Shutdown(shutdownCtx)
-}
-
-func BuildAndRun(cfg *config.Config) error {
-	ctx := context.Background()
-
-	slog.Info("Generating templ components...")
-	if err := exec.CommandContext(ctx, "templ", "generate").Run(); err != nil {
-		return fmt.Errorf("templ generate: %w", err)
-	}
-
-	slog.Info("Building binary...")
-	cmd := exec.CommandContext(ctx, "go", "build", "-o", "bin/zeptor.exe", "./cmd/zeptor")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("go build: %w", err)
-	}
-
-	slog.Info("Starting server...")
-	serverCmd := exec.CommandContext(ctx, "./bin/zeptor.exe")
-	serverCmd.Stdout = os.Stdout
-	serverCmd.Stderr = os.Stderr
-	serverCmd.Stdin = os.Stdin
-
-	if err := serverCmd.Start(); err != nil {
-		return fmt.Errorf("start server: %w", err)
-	}
-
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	slog.Info("Shutting down...")
-	return serverCmd.Process.Signal(syscall.SIGTERM)
 }
