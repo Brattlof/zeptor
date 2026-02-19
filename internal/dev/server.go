@@ -21,6 +21,7 @@ import (
 
 	"github.com/brattlof/zeptor/internal/app/config"
 	"github.com/brattlof/zeptor/internal/app/router"
+	"github.com/brattlof/zeptor/pkg/plugin"
 )
 
 type DevServer struct {
@@ -32,18 +33,22 @@ type DevServer struct {
 	childCmd    *exec.Cmd
 	childMu     sync.Mutex
 	rebuilding  bool
+	registry    *plugin.Registry
+	logger      *slog.Logger
 }
 
-func NewDevServer(cfg *config.Config) (*DevServer, error) {
+func NewDevServer(cfg *config.Config, registry *plugin.Registry) (*DevServer, error) {
 	rt, err := router.New(cfg.Routing.AppDir)
 	if err != nil {
 		return nil, fmt.Errorf("create router: %w", err)
 	}
 
 	return &DevServer{
-		config: cfg,
-		router: rt,
-		hmr:    NewHMRSerer(),
+		config:   cfg,
+		router:   rt,
+		hmr:      NewHMRSerer(),
+		registry: registry,
+		logger:   slog.Default(),
 	}, nil
 }
 
@@ -240,6 +245,7 @@ func (d *DevServer) handleFileChange(path string) {
 		d.rebuilding = false
 		d.childMu.Unlock()
 
+		d.callDevReloadHooks(path)
 		d.hmr.Reload(path)
 
 	case ".go":
@@ -266,7 +272,23 @@ func (d *DevServer) handleFileChange(path string) {
 		d.rebuilding = false
 		d.childMu.Unlock()
 
+		d.callDevReloadHooks(path)
 		d.hmr.Reload(path)
+	}
+}
+
+func (d *DevServer) callDevReloadHooks(path string) {
+	if d.registry == nil {
+		return
+	}
+
+	hooks := d.registry.GetHooks(plugin.HookDev)
+	for _, h := range hooks {
+		if dh, ok := h.(plugin.DevHook); ok {
+			if err := dh.OnDevReload(path); err != nil {
+				d.logger.Warn("plugin dev reload hook error", "error", err, "plugin", h.(plugin.Hook))
+			}
+		}
 	}
 }
 
@@ -298,13 +320,24 @@ func noCacheFileServer(root http.FileSystem) http.Handler {
 	})
 }
 
-func RunDev(cfg *config.Config) error {
+func RunDev(cfg *config.Config, registry *plugin.Registry) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	dev, err := NewDevServer(cfg)
+	dev, err := NewDevServer(cfg, registry)
 	if err != nil {
 		return fmt.Errorf("create dev server: %w", err)
+	}
+
+	if registry != nil {
+		hooks := registry.GetHooks(plugin.HookDev)
+		for _, h := range hooks {
+			if dh, ok := h.(plugin.DevHook); ok {
+				if err := dh.OnDevStart(); err != nil {
+					slog.Warn("plugin dev start hook error", "error", err)
+				}
+			}
+		}
 	}
 
 	if err := dev.Start(ctx); err != nil {
@@ -316,6 +349,17 @@ func RunDev(cfg *config.Config) error {
 	<-quit
 
 	slog.Info("Shutting down dev server...")
+
+	if registry != nil {
+		hooks := registry.GetHooks(plugin.HookDev)
+		for _, h := range hooks {
+			if dh, ok := h.(plugin.DevHook); ok {
+				if err := dh.OnDevStop(); err != nil {
+					slog.Warn("plugin dev stop hook error", "error", err)
+				}
+			}
+		}
+	}
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()

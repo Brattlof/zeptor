@@ -15,6 +15,7 @@ type Config struct {
 	Rendering RenderingConfig `mapstructure:"rendering"`
 	Build     BuildConfig     `mapstructure:"build"`
 	Logging   LoggingConfig   `mapstructure:"logging"`
+	Plugins   PluginsConfig   `mapstructure:"plugins"`
 }
 
 type AppConfig struct {
@@ -48,6 +49,14 @@ type LoggingConfig struct {
 	Level  string `mapstructure:"level"`
 	Format string `mapstructure:"format"`
 }
+
+type PluginsConfig struct {
+	Enabled []string                 `mapstructure:"enabled"`
+	Config  map[string]PluginOptions `mapstructure:"config"`
+	Dir     string                   `mapstructure:"dir"`
+}
+
+type PluginOptions map[string]interface{}
 
 func Load(configPath string) (*Config, error) {
 	v := viper.New()
@@ -112,6 +121,9 @@ func setDefaults(v *viper.Viper) {
 
 	v.SetDefault("logging.level", "info")
 	v.SetDefault("logging.format", "json")
+
+	v.SetDefault("plugins.enabled", []string{})
+	v.SetDefault("plugins.dir", "./plugins")
 }
 
 func (c *Config) Addr() string {

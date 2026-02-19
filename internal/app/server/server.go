@@ -1,6 +1,7 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -9,19 +10,27 @@ import (
 
 	"github.com/brattlof/zeptor/internal/app/config"
 	"github.com/brattlof/zeptor/internal/app/router"
+	"github.com/brattlof/zeptor/pkg/plugin"
 )
 
 type Server struct {
-	config *config.Config
-	router *router.Router
-	mux    *chi.Mux
+	config   *config.Config
+	router   *router.Router
+	mux      *chi.Mux
+	registry *plugin.Registry
+	logger   *slog.Logger
 }
 
-func New(cfg *config.Config, rt *router.Router) *Server {
+func New(cfg *config.Config, rt *router.Router, registry *plugin.Registry, logger *slog.Logger) *Server {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &Server{
-		config: cfg,
-		router: rt,
-		mux:    chi.NewRouter(),
+		config:   cfg,
+		router:   rt,
+		mux:      chi.NewRouter(),
+		registry: registry,
+		logger:   logger,
 	}
 }
 
@@ -34,6 +43,73 @@ func (s *Server) SetupMiddlewares() {
 
 	if s.config.EBPF.Enabled {
 		s.mux.Use(s.eBPFMiddleware)
+	}
+
+	if s.registry != nil {
+		hooks := s.registry.GetHooks(plugin.HookMiddleware)
+		for _, h := range hooks {
+			if mh, ok := h.(plugin.MiddlewareHook); ok {
+				s.mux.Use(mh.OnMiddleware())
+			}
+		}
+
+		s.mux.Use(s.pluginRequestHook)
+		s.mux.Use(s.pluginResponseHook)
+	}
+
+	s.callRouterHooks()
+}
+
+func (s *Server) pluginRequestHook(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.registry == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		hooks := s.registry.GetHooks(plugin.HookRequest)
+		for _, h := range hooks {
+			if rh, ok := h.(plugin.RequestHook); ok {
+				if err := rh.OnRequest(r); err != nil {
+					s.logger.Warn("plugin request hook error", "error", err)
+				}
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) pluginResponseHook(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.registry == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		wrapped := &responseWriter{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(wrapped, r)
+
+		hooks := s.registry.GetHooks(plugin.HookResponse)
+		for _, h := range hooks {
+			if rh, ok := h.(plugin.ResponseHook); ok {
+				rh.OnResponse(wrapped, r, wrapped.status)
+			}
+		}
+	})
+}
+
+func (s *Server) callRouterHooks() {
+	if s.registry == nil {
+		return
+	}
+
+	hooks := s.registry.GetHooks(plugin.HookRouter)
+	for _, h := range hooks {
+		if rh, ok := h.(plugin.RouterHook); ok {
+			if err := rh.OnRouterInit(&routerAdapter{mux: s.mux}); err != nil {
+				s.logger.Error("plugin router hook error", "error", err)
+			}
+		}
 	}
 }
 
@@ -111,4 +187,42 @@ func (s *Server) Put(pattern string, handler http.HandlerFunc) {
 
 func (s *Server) Delete(pattern string, handler http.HandlerFunc) {
 	s.mux.Delete(pattern, handler)
+}
+
+type responseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.status = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+type routerAdapter struct {
+	mux *chi.Mux
+}
+
+func (r *routerAdapter) Get(pattern string, handler http.HandlerFunc) {
+	r.mux.Get(pattern, handler)
+}
+
+func (r *routerAdapter) Post(pattern string, handler http.HandlerFunc) {
+	r.mux.Post(pattern, handler)
+}
+
+func (r *routerAdapter) Put(pattern string, handler http.HandlerFunc) {
+	r.mux.Put(pattern, handler)
+}
+
+func (r *routerAdapter) Delete(pattern string, handler http.HandlerFunc) {
+	r.mux.Delete(pattern, handler)
+}
+
+func (r *routerAdapter) Use(middleware func(http.Handler) http.Handler) {
+	r.mux.Use(middleware)
+}
+
+func (r *routerAdapter) Mount(pattern string, handler http.Handler) {
+	r.mux.Mount(pattern, handler)
 }
