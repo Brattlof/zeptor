@@ -151,7 +151,69 @@ rendering:
 logging:
   level: "info"
   format: "text"
+
+plugins:
+  enabled: ["basicauth", "ratelimit"]
+  dir: "./plugins"
+  config:
+    basicauth:
+      users: ["admin:secret"]
+      paths: ["/admin"]
+      realm: "Admin Area"
+    ratelimit:
+      limit: 100
+      windowSeconds: 60
 ```
+
+## Plugins
+
+Zeptor supports a plugin architecture for extending functionality.
+
+### Built-in Plugins
+
+| Plugin | Description |
+|--------|-------------|
+| `basicauth` | HTTP Basic Authentication middleware |
+| `ratelimit` | IP-based rate limiting |
+| `headers` | Add, remove, or override HTTP headers |
+
+### Plugin Commands
+
+```bash
+# List loaded plugins
+zt plugin list
+zt plugin list --json
+
+# Inspect a specific plugin
+zt plugin inspect basicauth
+```
+
+### Creating a Plugin
+
+Plugins implement the `plugin.Plugin` interface:
+
+```go
+package myplugin
+
+import "github.com/brattlof/zeptor/pkg/plugin"
+
+type MyPlugin struct{}
+
+func (p *MyPlugin) Name() string        { return "myplugin" }
+func (p *MyPlugin) Version() string     { return "1.0.0" }
+func (p *MyPlugin) Description() string { return "My custom plugin" }
+func (p *MyPlugin) Init(ctx *plugin.PluginContext) error { return nil }
+func (p *MyPlugin) Close() error { return nil }
+```
+
+Available hooks:
+- `ConfigHook` - Called when config is loaded
+- `RouterHook` - Called when router is initialized
+- `MiddlewareHook` - Provides middleware function
+- `RequestHook` - Called on each request
+- `ResponseHook` - Called after response
+- `BuildHook` - Called during build process
+- `DevHook` - Called during dev server lifecycle
 
 ## Docker Development
 
@@ -190,10 +252,10 @@ This project is in **early alpha**. Expect breaking changes.
 - [x] Hot module replacement (HMR)
 - [x] Dev server with file watching
 - [x] `zt create` project scaffolding
+- [x] Plugin architecture
 - [ ] Full eBPF integration (XDP + TC)
 - [ ] SSG build process
 - [ ] Middleware system
-- [ ] Plugin architecture
 
 ## Contributing
 

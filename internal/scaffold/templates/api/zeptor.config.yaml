@@ -15,3 +15,9 @@ rendering:
 logging:
   level: "info"
   format: "json"
+
+# plugins:
+#   enabled: []
+#   dir: "./plugins"
+#   config: {}
+

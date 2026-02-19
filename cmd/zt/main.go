@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"text/tabwriter"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/brattlof/zeptor/internal/app/router"
 	"github.com/brattlof/zeptor/internal/dev"
 	"github.com/brattlof/zeptor/internal/scaffold"
+	"github.com/brattlof/zeptor/pkg/plugin"
 )
 
 var rootCmd = &cobra.Command{
@@ -45,7 +48,21 @@ var devCmd = &cobra.Command{
 			cfg.EBPF.Enabled = false
 		}
 
-		if err := dev.RunDev(cfg); err != nil {
+		registry := plugin.NewRegistry(slog.Default())
+		if len(cfg.Plugins.Enabled) > 0 {
+			loader := plugin.NewLoader(registry, cfg.Plugins.Dir, slog.Default())
+			pluginConfigs := make(map[string]plugin.PluginOptions)
+			for name, opts := range cfg.Plugins.Config {
+				pluginConfigs[name] = plugin.PluginOptions(opts)
+			}
+			if err := loader.LoadFromConfig(context.Background(), cfg.Plugins.Enabled, pluginConfigs); err != nil {
+				fmt.Fprintf(os.Stderr, "Error loading plugins: %v\n", err)
+				os.Exit(1)
+			}
+			defer loader.Close()
+		}
+
+		if err := dev.RunDev(cfg, registry); err != nil {
 			fmt.Fprintf(os.Stderr, "Dev server error: %v\n", err)
 			os.Exit(1)
 		}
@@ -252,6 +269,118 @@ var routesCmd = &cobra.Command{
 	},
 }
 
+var pluginCmd = &cobra.Command{
+	Use:   "plugin",
+	Short: "Manage plugins",
+	Long:  `List, inspect, and manage Zeptor plugins.`,
+}
+
+var pluginListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List available plugins",
+	Run: func(cmd *cobra.Command, args []string) {
+		configPath, _ := cmd.Flags().GetString("config")
+		jsonOutput, _ := cmd.Flags().GetBool("json")
+
+		cfg, err := config.Load(configPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+			os.Exit(1)
+		}
+
+		registry := plugin.NewRegistry(slog.Default())
+		if len(cfg.Plugins.Enabled) > 0 {
+			loader := plugin.NewLoader(registry, cfg.Plugins.Dir, slog.Default())
+			pluginConfigs := make(map[string]plugin.PluginOptions)
+			for name, opts := range cfg.Plugins.Config {
+				pluginConfigs[name] = plugin.PluginOptions(opts)
+			}
+			loader.LoadFromConfig(context.Background(), cfg.Plugins.Enabled, pluginConfigs)
+		}
+
+		infos := registry.AllInfo()
+
+		if jsonOutput {
+			data, _ := json.MarshalIndent(map[string]interface{}{"plugins": infos}, "", "  ")
+			fmt.Println(string(data))
+			return
+		}
+
+		if len(infos) == 0 {
+			fmt.Println("No plugins loaded")
+			return
+		}
+
+		fmt.Printf("Loaded plugins (%d):\n\n", len(infos))
+		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+		fmt.Fprintln(w, "NAME\tVERSION\tHOOKS")
+		fmt.Fprintln(w, "----\t-------\t-----")
+
+		for _, info := range infos {
+			hooks := ""
+			for i, h := range info.Hooks {
+				if i > 0 {
+					hooks += ", "
+				}
+				hooks += string(h)
+			}
+			fmt.Fprintf(w, "%s\t%s\t%s\n", info.Name, info.Version, hooks)
+		}
+		w.Flush()
+	},
+}
+
+var pluginInspectCmd = &cobra.Command{
+	Use:   "inspect [plugin-name]",
+	Short: "Show detailed plugin information",
+	Args:  cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		configPath, _ := cmd.Flags().GetString("config")
+		pluginName := args[0]
+
+		cfg, err := config.Load(configPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+			os.Exit(1)
+		}
+
+		registry := plugin.NewRegistry(slog.Default())
+		if len(cfg.Plugins.Enabled) > 0 {
+			loader := plugin.NewLoader(registry, cfg.Plugins.Dir, slog.Default())
+			pluginConfigs := make(map[string]plugin.PluginOptions)
+			for name, opts := range cfg.Plugins.Config {
+				pluginConfigs[name] = plugin.PluginOptions(opts)
+			}
+			loader.LoadFromConfig(context.Background(), cfg.Plugins.Enabled, pluginConfigs)
+		}
+
+		info, ok := registry.Info(pluginName)
+		if !ok {
+			fmt.Fprintf(os.Stderr, "Plugin %q not found\n", pluginName)
+			os.Exit(1)
+		}
+
+		fmt.Printf("Name: %s\n", info.Name)
+		fmt.Printf("Version: %s\n", info.Version)
+		fmt.Printf("Description: %s\n", info.Description)
+		fmt.Printf("Enabled: %v\n", info.Enabled)
+
+		if len(info.Hooks) > 0 {
+			fmt.Println("\nHooks:")
+			for _, h := range info.Hooks {
+				fmt.Printf("  - %s\n", h)
+			}
+		}
+
+		if len(info.Config) > 0 {
+			fmt.Println("\nConfiguration:")
+			for k, v := range info.Config {
+				fmt.Printf("  %s: %v\n", k, v)
+			}
+		}
+	},
+}
+
 func init() {
 	devCmd.Flags().IntP("port", "p", 3000, "Port to run dev server on")
 	devCmd.Flags().Bool("no-ebpf", false, "Disable eBPF acceleration")
@@ -273,6 +402,14 @@ func init() {
 	createCmd.Flags().Bool("skip-templ", false, "Skip templ generate")
 	createCmd.Flags().StringP("output", "o", "", "Output directory (default: project name)")
 
+	pluginListCmd.Flags().BoolP("json", "j", false, "Output as JSON")
+	pluginListCmd.Flags().StringP("config", "c", "", "Path to config file")
+
+	pluginInspectCmd.Flags().StringP("config", "c", "", "Path to config file")
+
+	pluginCmd.AddCommand(pluginListCmd)
+	pluginCmd.AddCommand(pluginInspectCmd)
+
 	rootCmd.AddCommand(devCmd)
 	rootCmd.AddCommand(buildCmd)
 	rootCmd.AddCommand(startCmd)
@@ -280,6 +417,7 @@ func init() {
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(routesCmd)
 	rootCmd.AddCommand(createCmd)
+	rootCmd.AddCommand(pluginCmd)
 }
 
 var (
