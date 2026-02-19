@@ -1,0 +1,28 @@
+package app
+
+import "fmt"
+
+templ SlugPage(slug string) {
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta charset="UTF-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		<title>{ slug } - {{.ProjectName}}</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+	</head>
+	<body class="bg-gray-900 text-white min-h-screen">
+		<nav class="bg-gray-800 p-4">
+			<div class="container mx-auto flex gap-4">
+				<a href="/" class="text-blue-400 hover:text-blue-300">Home</a>
+				<a href="/about" class="text-blue-400 hover:text-blue-300">About</a>
+			</div>
+		</nav>
+		<main class="container mx-auto p-8">
+			<h1 class="text-4xl font-bold mb-4">Dynamic Route</h1>
+			<p class="text-gray-400 mb-4">Slug: <code class="bg-gray-800 px-2 py-1 rounded">{ slug }</code></p>
+			<p class="text-gray-500">Try changing the URL path!</p>
+		</main>
+	</body>
+	</html>
+}

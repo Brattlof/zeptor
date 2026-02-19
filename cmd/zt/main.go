@@ -11,6 +11,7 @@ import (
 	"github.com/brattlof/zeptor/internal/app/config"
 	"github.com/brattlof/zeptor/internal/app/router"
 	"github.com/brattlof/zeptor/internal/dev"
+	"github.com/brattlof/zeptor/internal/scaffold"
 )
 
 var rootCmd = &cobra.Command{
@@ -122,6 +123,52 @@ var versionCmd = &cobra.Command{
 	},
 }
 
+var createCmd = &cobra.Command{
+	Use:   "create [project-name]",
+	Short: "Create a new Zeptor project",
+	Long: `Create a new Zeptor project from a template.
+
+Examples:
+  zt create my-app                    Create a minimal project
+  zt create my-api -t api             Create an API-only project
+  zt create my-site -t basic -p 8080  Create a basic project on port 8080`,
+	Args: cobra.ExactArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		projectName := args[0]
+		template, _ := cmd.Flags().GetString("template")
+		port, _ := cmd.Flags().GetInt("port")
+		skipGit, _ := cmd.Flags().GetBool("skip-git")
+		skipTempl, _ := cmd.Flags().GetBool("skip-templ")
+		outputDir, _ := cmd.Flags().GetString("output")
+
+		opts := scaffold.Options{
+			ProjectName: projectName,
+			Template:    template,
+			Port:        port,
+			SkipGit:     skipGit,
+			SkipTempl:   skipTempl,
+			OutputDir:   outputDir,
+		}
+
+		fmt.Printf("Creating project %s...\n", projectName)
+
+		if err := scaffold.Create(opts); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		targetDir := outputDir
+		if targetDir == "" {
+			targetDir = projectName
+		}
+
+		fmt.Printf("\n✓ Project created in %s/\n\n", targetDir)
+		fmt.Println("Next steps:")
+		fmt.Printf("  cd %s\n", targetDir)
+		fmt.Println("  zt dev")
+	},
+}
+
 var routesCmd = &cobra.Command{
 	Use:   "routes",
 	Short: "List all routes discovered from app directory",
@@ -220,12 +267,19 @@ func init() {
 	routesCmd.Flags().BoolP("json", "j", false, "Output as JSON")
 	routesCmd.Flags().StringP("config", "c", "", "Path to config file")
 
+	createCmd.Flags().StringP("template", "t", "minimal", "Project template (minimal, basic, api)")
+	createCmd.Flags().IntP("port", "p", 3000, "Default port for the application")
+	createCmd.Flags().Bool("skip-git", false, "Skip git initialization")
+	createCmd.Flags().Bool("skip-templ", false, "Skip templ generate")
+	createCmd.Flags().StringP("output", "o", "", "Output directory (default: project name)")
+
 	rootCmd.AddCommand(devCmd)
 	rootCmd.AddCommand(buildCmd)
 	rootCmd.AddCommand(startCmd)
 	rootCmd.AddCommand(generateCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(routesCmd)
+	rootCmd.AddCommand(createCmd)
 }
 
 var (

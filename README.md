@@ -22,15 +22,33 @@ A Next.js-like Go framework with eBPF acceleration.
 ### Prerequisites
 
 - Go 1.23+
+- [templ](https://github.com/a-h/templ) CLI (`go install github.com/a-h/templ/cmd/templ@latest`)
 - Docker (optional, for containerized development)
 
-### Installation
+### Create a New Project
 
 ```bash
+# Install Zeptor CLI
 git clone https://github.com/brattlof/zeptor.git
 cd zeptor
 make install-deps
 make build
+
+# Create a new project
+./bin/zt create my-app
+cd my-app
+../bin/zt dev
+```
+
+Open http://localhost:3000
+
+### Project Templates
+
+```bash
+zt create my-app                    # Minimal (default)
+zt create my-app -t basic           # Basic with routing examples
+zt create my-api -t api             # API-only project
+zt create my-app -t basic -p 8080   # Custom port
 ```
 
 ### Run an Example
@@ -39,8 +57,6 @@ make build
 cd examples/hello-world
 ../../bin/zt dev
 ```
-
-Open http://localhost:3000
 
 ## Examples
 
@@ -93,6 +109,10 @@ my-zeptor-app/
 ## CLI Commands
 
 ```bash
+# Create a new project
+zt create my-app
+zt create my-app -t basic -p 8080
+
 # Run development server (from project directory)
 zt dev
 
@@ -146,6 +166,7 @@ docker-compose -f docker/docker-compose.yml --profile ebpf up -d zeptor-ebpf
 ## Requirements
 
 - Go 1.23+
+- [templ](https://github.com/a-h/templ) CLI (for template generation)
 - Linux kernel 5.4+ (for eBPF features)
 - Docker (optional, for containerized development)
 
@@ -168,9 +189,9 @@ This project is in **early alpha**. Expect breaking changes.
 - [x] SSR with templ rendering
 - [x] Hot module replacement (HMR)
 - [x] Dev server with file watching
+- [x] `zt create` project scaffolding
 - [ ] Full eBPF integration (XDP + TC)
 - [ ] SSG build process
-- [ ] `zt create` project scaffolding
 - [ ] Middleware system
 - [ ] Plugin architecture
 
